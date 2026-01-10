@@ -1,0 +1,51 @@
+# Task configurations for RPG Gaming Assistant
+
+research_task:
+  description: >
+    Search for information about "{game_name}" to answer: "{query}"
+    
+    USE THIS TOOL:
+    Tool: "Search Game Information"
+    Input: game_name="{game_name}", query="{query}"
+    
+    From the results, extract:
+    1. Direct answer to the query
+    2. Locations or item names
+    3. Requirements or prerequisites  
+    4. Step-by-step instructions
+    5. Source URLs
+    
+    Report exactly what the tool returns.
+
+  expected_output: >
+    Research findings with:
+    - Answer from web sources
+    - Specific details (locations, items, steps)
+    - Source URLs
+
+  agent: researcher
+
+reporting_task:
+  description: >
+    Create a guide for {game_name} based on research.
+    Query: {query}
+    
+    Format with markdown:
+    - Title with game name
+    - Clear sections
+    - Bullet points for steps
+    - Source citations
+
+  expected_output: >
+    A formatted markdown guide with:
+    # Title - {game_name}
+    ## Overview
+    ## Instructions/Location/Answer
+    ## Tips
+    ## Sources
+
+  agent: game_expert
+  context:
+    - research_task
+
+

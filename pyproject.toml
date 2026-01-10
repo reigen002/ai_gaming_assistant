@@ -1,0 +1,33 @@
+[project]
+name = "rpgagents"
+version = "0.1.0"
+description = "rpgagents using crewAI"
+authors = [{ name = "Your Name", email = "you@example.com" }]
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "crewai[google-genai,tools]==1.7.2",
+    "langchain-ollama>=1.0.1",
+    "langchain-text-splitters>=1.1.0",
+    "litellm>=1.75.3",
+    "sentence-transformers>=5.2.0",
+    "duckduckgo-search>=7.0.0",
+    "beautifulsoup4>=4.12.0",
+    "requests>=2.32.0",
+    "chromadb>=0.5.0",
+    "langchain-community>=0.3.0",
+]
+
+[project.scripts]
+rpgagents = "rpgagents.main:run"
+run_crew = "rpgagents.main:run"
+train = "rpgagents.main:train"
+replay = "rpgagents.main:replay"
+test = "rpgagents.main:test"
+run_with_trigger = "rpgagents.main:run_with_trigger"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.crewai]
+type = "crew"

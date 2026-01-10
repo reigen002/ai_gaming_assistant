@@ -1,0 +1,37 @@
+# Environments
+.env
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / Build
+build/
+dist/
+*.egg-info/
+
+# PyInstaller
+*.spec
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# VS Code
+.vscode/
+
+# Project Specific
+chroma_db/
+output/
+logs/
+
+# Optional: Ignore raw data if large, but keep structure. 
+# Un-comment below if you don't want to commit text files.
+# data/
+
+# OS Generated
+.DS_Store
+Thumbs.db
