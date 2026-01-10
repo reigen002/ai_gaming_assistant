@@ -85,25 +85,6 @@ python src/rpgagents/main.py
 
 All generated guides are saved to the `output/` directory.
 
-## 🏗️ Architecture
-
-```mermaid
-graph TD
-    User[User Input] --> Router{Smart Switch}
-    
-    Router -- "Cached High Match (<0.45)" --> Local[Local Cache (ChromaDB)]
-    Local --> Ollama[Ollama LLM]
-    
-    Router -- "No Data / Low Match" --> Web[Web Search (DuckDuckGo)]
-    Web --> Ingest[Ingestion & Indexing]
-    Ingest --> Local
-    Ingest --> Gemini[Gemini LLM]
-    
-    Ollama --> Agent[CrewAI Agents]
-    Gemini --> Agent
-    
-    Agent --> Output[Generated Guide (.md)]
-```
 
 ## 🧪 Validation
 
