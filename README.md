@@ -87,23 +87,52 @@ All generated guides are saved to the `output/` directory.
 
 ## 🏗️ Architecture
 
-```mermaid
-graph TD
-    User[User Input] --> Router{Smart Switch}
-    
-    Router -- "Cached High Match (<0.45)" --> Local[Local Cache (ChromaDB)]
-    Local --> Ollama[Ollama LLM]
-    
-    Router -- "No Data / Low Match" --> Web[Web Search (DuckDuckGo)]
-    Web --> Ingest[Ingestion & Indexing]
-    Ingest --> Local
-    Ingest --> Gemini[Gemini LLM]
-    
-    Ollama --> Agent[CrewAI Agents]
-    Gemini --> Agent
-    
-    Agent --> Output[Generated Guide (.md)]
+```text
++------------+
+| User Input |
++------+-----+
+       |
+       v
++------+-------+
+| Smart Switch |
++------+-------+
+       |
+       +-------------------------------------+
+       |                                     |
+       v (High Match < 0.45)                 v (No/Low Match)
++------+------+                       +------+-------+
+| Local Cache |                       |  Web Search  |
+| (ChromaDB)  |                       | (DuckDuckGo) |
++------+------+                       +------+-------+
+       |                                     |
+       |                                     v
+       |                              +------+-------+
+       |                              |  Ingestion   |
+       |                              |  & Indexing  |
+       |                              +------+-------+
+       |                                     |
+       v                                     v
++------+-------+                      +------+-------+
+|  Ollama LLM  |                      |  Gemini LLM  |
+| (Student)    |                      |  (Teacher)   |
++------+-------+                      +------+-------+
+       |                                     |
+       +------------------+------------------+
+                          |
+                          v
+                  +-------+-------+
+                  | CrewAI Agents |
+                  | (Researcher/  |
+                  |  Writer)      |
+                  +-------+-------+
+                          |
+                          v
+                  +-------+-------+
+                  |   Final Output|
+                  |  (Guide .md)  |
+                  +---------------+
 ```
+
 
 ## 🧪 Validation
 
