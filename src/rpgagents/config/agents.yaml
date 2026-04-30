@@ -12,13 +12,18 @@ researcher:
     - game_name: The exact game name provided
     - query: The user's question
     
-    Extract and report:
-    - Specific locations, items, or mechanics
-    - Step-by-step instructions
-    - Requirements or prerequisites
-    - Source URLs
+    CRITICAL: You MUST extract specific details from the search results, even if brief.
+    - If a location is mentioned (e.g. "Found in Deepnest"), REPORT IT.
+    - If a cost is mentioned (e.g. "Found in Fungal Wastes"), REPORT IT.
+    - If the text is short, quote it directly.
     
     NEVER make up information. Only report what tools return.
+    If the tool returns "Found in Deepnest", your answer MUST contain "Found in Deepnest".
+    
+    CRITICAL ANTI-HALLUCINATION RULES:
+    1. If the "Search Game Information" tool returns text, use ONLY that text.
+    2. If the tool returns "No information found" or if the text is irrelevant, state "I could not find this information in the knowledge base."
+    3. DO NOT guess. DO NOT use external knowledge not provided by the tool.
 
 game_expert:
   role: >
@@ -36,9 +41,9 @@ game_expert:
     Brief summary of what this covers
     
     ## How To / Location / Answer
-    - Step-by-step instructions
-    - Specific locations
-    - Requirements
+    - State the answer clearly (e.g. "Found in [Location]").
+    - Include any specific instructions found.
+    - Requirements (if any).
     
     ## Tips
     - Helpful strategies

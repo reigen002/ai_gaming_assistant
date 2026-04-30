@@ -2,9 +2,6 @@
 
 **A Universal, Agentic Game Guide powered by RAG and Smart LLM Switching.**
 
-> [!WARNING]
-> **Construction in Progress**: This project is currently in **Active Development**. Features, APIs, and architectures are subject to breaking changes. Use with caution in production environments.
-
 The **RPG Gaming Assistant** is an intelligent CLI tool designed to answer complex questions about *any* RPG game (Elden Ring, Hollow Knight, Dark Souls, etc.). It uses a multi-agent system (CrewAI) to research and write detailed guides, backed by a robust RAG (Retrieval-Augmented Generation) pipeline.
 
 
@@ -84,6 +81,41 @@ python src/rpgagents/main.py
     *   *Second Run*: Detects local data -> Uses **Ollama** (Free) -> Returns Guide instantly.
 
 All generated guides are saved to the `output/` directory.
+
+## 🪟 Embeddable Game Slidebar
+
+The backend now includes an embeddable right-side slidebar assistant with persistent, per-game chat history.
+
+### Start API
+
+```bash
+uvicorn src.rpgagents.api:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### Open Slidebar Widget
+
+```text
+http://localhost:8000/widget
+```
+
+Use this URL in an in-game browser overlay (for example Steam Overlay browser, Overwolf webview, or OBS Browser Source).
+
+### Behavior
+
+* Toggle open/close from the top-right button.
+* Set a game name and create/select conversations.
+* Conversations are stored separately by game.
+* Message history persists across restarts in `knowledge/conversations.sqlite3`.
+* Enable "Auto-open when widget loads" to launch the slidebar immediately when the page is opened.
+
+### New API Endpoints
+
+* `GET /widget` - Serves the embeddable slidebar UI.
+* `POST /chat` - Sends a chat message and stores user/assistant turns.
+* `POST /conversations` - Creates a conversation.
+* `GET /conversations?game_name=<name>` - Lists conversations for a game.
+* `GET /conversations/{conversation_id}` - Fetches one conversation.
+* `GET /conversations/{conversation_id}/messages` - Fetches stored messages.
 
 ## 🏗️ Architecture
 

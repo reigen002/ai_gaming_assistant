@@ -19,8 +19,8 @@ research_task:
 
   expected_output: >
     Research findings with:
-    - Answer from web sources
-    - Specific details (locations, items, steps)
+    - Answer from sources (MUST include specific locations/costs if available)
+    - Specific details (Do not summarize vaguely, use exact terms)
     - Source URLs
 
   agent: researcher

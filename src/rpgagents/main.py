@@ -11,25 +11,6 @@ from rpgagents.crew import Rpgagents
 
 
 
-def determine_provider_and_search(game_name: str, query: str):
-    """
-    Directly uses the GameSearchTool to check if data is local or web-based.
-    Returns (provider_name, search_result_text)
-    """
-    from rpgagents.tools.game_search_tool import GameSearchTool
-    pre_search_tool = GameSearchTool()
-    
-    # This acts as the "Pre-Check" and also the "Ingestion" step
-    # If it goes to web, it indexes the data NOW.
-    search_result = pre_search_tool._run(game_name, query)
-    
-    if "Web Index" in search_result:
-        return "gemini", search_result
-    elif "Local Source" in search_result:
-        return "ollama", search_result
-    else:
-        # Fallback for weird cases or empty results
-        return "gemini", search_result
 
 def run():
 
@@ -78,23 +59,13 @@ def run():
         print(f"\n🔍 Checking knowledge base for query...")
         
         # Extracted logic for readability and testing
-        provider, search_result = determine_provider_and_search(game_name, query)
+        # --- CLOUD-ONLY MODE ---
+        # We now rely on the Agent to perform the search using its tools.
+        print(f"\n🚀 Starting Agent Crew (Cloud-Only)...")
         
-        if provider == "gemini":
-             if "Web Index" in search_result:
-                print("\n🌐 Source: WEB (New data scraped and indexed)")
-                print("🤖 Switching to Gemini 1.5 Flash for advanced synthesis of new information.")
-             else:
-                print("\n⚠️ Source: UNKNOWN (Low confidence)")
-                print("🤖 Defaulting to Gemini for safety.")
-        else:
-            print("\n📂 Source: LOCAL (Cached data found)")
-            print("🤖 Using Ollama (Local LLM) for efficient retrieval.")
-
-        # 2. Kickoff Crew with selected provider
-        inputs['provider'] = provider 
-        
-        result = Rpgagents(provider=provider).crew().kickoff(inputs=inputs)
+        # Initialize with default (Gemini)
+        rpg_agents = Rpgagents()
+        result = rpg_agents.crew().kickoff(inputs=inputs)
         result_text = result.raw if hasattr(result, 'raw') else str(result)
                          
         print("\n" + "=" * 70)

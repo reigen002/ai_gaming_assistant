@@ -26,7 +26,7 @@ class Rpgagents:
     agents: List[Agent] = []
     tasks: List[Task] = []
 
-    def __init__(self, provider: str = "ollama"):
+    def __init__(self):
         # Initialize tools
         self._game_search_tool = GameSearchTool()
         self._web_search_tool = WebSearchTool()
@@ -43,34 +43,18 @@ class Rpgagents:
             with open(self.tasks_config, 'r', encoding='utf-8') as f:
                 self.tasks_config = yaml.safe_load(f)
 
-        # Get model based on provider
-        if provider == "gemini":
-            logger.info("🤖 Using LLM: Gemini 1.5 Flash (Fallback)")
-            # Support both standard naming conventions
-            api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-            
-            if not api_key:
-                logger.warning("⚠️ GEMINI_API_KEY or GOOGLE_API_KEY not found. Fallback may fail.")
-            
-            # Pass the key explicitly to LiteLLM via environment variable override if needed, 
-            # but usually passing api_key param is sufficient.
-            self._llm = LLM(
-                model="gemini/gemini-flash-latest",
-                api_key=api_key
-            )
-        else:
-            # Default to Ollama
-            model_name = os.getenv('OLLAMA_MODEL', 'llama3.2:3b')
-            ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-
-            logger.info(f"🤖 Using LLM: ollama/{model_name} at {ollama_host}")
-
-            self._llm = LLM(
-                model=f"ollama/{model_name}",
-                base_url=ollama_host,
-                temperature=0.3,
-                max_tokens=2048,
-            )
+        # Standardizing on Gemini (Cloud-Only)
+        logger.info("🤖 Using LLM: Gemini Flash Latest (Cloud Only)")
+        api_key = os.getenv("GEMINI_API_KEY")
+        
+        if not api_key:
+            logger.warning("⚠️ GEMINI_API_KEY not found. Agent execution may fail.")
+        
+        self._llm = LLM(
+            model="gemini/gemini-flash-latest",
+            api_key=api_key,
+            temperature=0.3
+        )
 
     @agent
     def researcher(self) -> Agent:
@@ -121,6 +105,6 @@ class Rpgagents:
             verbose=True,
             memory=False,
             cache=False,
-            max_rpm=10,
+            max_rpm=100,
         )
 
