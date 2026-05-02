@@ -1,189 +1,412 @@
-# 🎮 RPG Gaming Assistant
+# 🎮 Backend - RPG Gaming Assistant API
 
-**A Universal, Agentic Game Guide powered by RAG and Smart LLM Switching.**
+**FastAPI backend with CrewAI multi-agent system, ChromaDB RAG, and smart rate limit fallback.**
 
-The **RPG Gaming Assistant** is an intelligent CLI tool designed to answer complex questions about *any* RPG game (Elden Ring, Hollow Knight, Dark Souls, etc.). It uses a multi-agent system (CrewAI) to research and write detailed guides, backed by a robust RAG (Retrieval-Augmented Generation) pipeline.
-
+Core backend service that powers the game assistant sidebar widget. Handles intelligent search routing, conversation persistence, and seamless LLM fallback when API quotas are exhausted.
 
 ## ✨ Key Features
 
-*   **Universal Game Support**: Can research and index information for any game on demand.
-*   **🧠 Smart Provider Switching**:
-    *   **Local First**: Automatically uses **Ollama (Llama 3.2)** when high-quality data is found in the local cache (Fast & Free).
-    *   **Cloud Fallback**: Switches to **Gemini 1.5 Flash** when web search is required or local data is insufficient (High Intelligence).
-*   **Self-Healing RAG Pipeline**:
-    *   Scrapes game wikis and documentation.
-    *   Optimizes data chunking (400 chars) for precise item retrieval.
-    *   Filters false positives (Strict 0.45 semantic threshold).
+*   **FastAPI REST API**: 7 endpoints for chat, conversations, and widget serving
+*   **🧠 Intelligent Query Routing**:
+    *   **Default (Normal)**: Full CrewAI crew with Gemini LLM for formatted responses
+    *   **Fallback (Rate Limited)**: Direct search on 429 errors - no LLM calls
+    *   **Auto-Detection**: Catches rate limits and switches automatically
+*   **Hybrid Search Engine**:
+    *   **ChromaDB RAG**: Semantic search on cached game data (instant, free)
+    *   **Web Search**: Serper API + DuckDuckGo for non-cached queries
+    *   **Auto-Indexing**: Web results automatically cached for future queries
+    *   **Strict Relevance**: 0.45 distance threshold prevents false positives
+*   **Persistent Conversations**:
+    *   SQLite database with game-level separation
+    *   Message history with timestamps
+    *   Indexed queries for fast retrieval
 *   **Multi-Agent Workflow**:
-    *   **Research Agent**: Finds authoritative data locally or via the web.
-    *   **Writer Agent**: Compiles findings into a structured, player-friendly guide.
+    *   **Researcher Agent**: Searches and gathers information
+    *   **Game Expert Agent**: Formats answers to 1-3 sentences max
 
-## 🚀 Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
-
-| Requirement | Description |
-| :--- | :--- |
-| **Python** | v3.10 or higher |
-| **Ollama** | Local LLM runner. [Download Here](https://ollama.com/) |
-| **Gemini API Key** | For web search synthesis. [Get Key](https://aistudio.google.com/) |
-| **Serper API Key** | For high-quality Google Search results. [Get Key](https://serper.dev/) |
+| Component | Version |
+|-----------|---------|
+| **Python** | 3.10+ |
+| **Gemini API Key** | [Get here](https://aistudio.google.com/) |
+| **Serper API Key** | [Get here](https://serper.dev/) |
 
 ### Installation
 
-1.  **Clone the Repository**
-    ```bash
-    git clone https://github.com/reigen002/ai_gaming_assistant.git
-    cd ai_gaming_assistant/backend/rpgagents
-    ```
+1. **Install dependencies** (in this directory)
+   ```bash
+   pip install -e .
+   ```
 
-2.  **Install Dependencies**
-    Using `uv` (recommended) or `pip`:
-    ```bash
-    pip install .
-    # OR
-    uv sync
-    ```
+2. **Configure API keys** (create `.env` in project root)
+   ```env
+   GEMINI_API_KEY=your_key_here
+   SERPER_API_KEY=your_key_here
+   CHROMA_DB_PATH=./chroma_db
+   ```
 
-3.  **Setup Environment**
-    Create a `.env` file in the root directory:
-    ```env
-    # Required for Web Search Synthesis
-    GEMINI_API_KEY=your_google_api_key_here
-    SERPER_API_KEY=your_serper_api_key_here
+### Run Backend
+
+```bash
+# Option 1: Start API server (recommended for widget)
+python main.py api
+
+# Option 2: Interactive CLI
+python main.py
+
+# Option 3: Direct with uvicorn
+uvicorn src.rpgagents.api:app --host 127.0.0.1 --port 8000
+```
+
+✅ API running on: **http://127.0.0.1:8000**  
+📖 OpenAPI docs: **http://127.0.0.1:8000/docs**
+
+## 📡 API Endpoints
+
+### Chat Endpoint (Main)
+```
+POST /chat
+
+Request:
+{
+  "game_name": "Valorant",
+  "message": "best agent for beginners?",
+  "conversation_id": "optional-uuid"  # Auto-generated if omitted
+}
+
+Response:
+{
+  "conversation_id": "550e8400-e29b-41d4-a716-446655440000",
+  "game_name": "Valorant",
+  "answer": "Phoenix, Sage, and Brimstone are great for beginners...",
+  "timestamp": "2026-05-02T12:34:56.789Z"
+}
+```
+
+### Conversation Management
+
+```
+POST /conversations
+Create new conversation
+
+GET /conversations?game_name=Valorant
+List conversations by game
+
+GET /conversations/{conversation_id}
+Get single conversation details
+
+GET /conversations/{conversation_id}/messages
+Fetch all messages in conversation
+```
+
+### Widget
+```
+GET /widget
+Serves embeddable HTML sidebar UI
+```
+
+## 🧠 Query Processing Pipeline
+
+### Flow Diagram
+```
+POST /chat
+    ↓
+quick_search(game_name, query)
+    ├─ Try: crew_search() [Full LLM Crew]
+    │   ├─ Researcher Agent → GameSearchTool
+    │   │   ├─ ChromaDB Search (distance < 0.45?)
+    │   │   └─ Web Search (Serper + DuckDuckGo) if no cache
+    │   │   └─ Auto-Index results into ChromaDB ✅
+    │   └─ Game Expert Agent → Format to 1-3 sentences
+    │
+    └─ Catch 429/429 RESOURCE_EXHAUSTED Error
+       └─ Fallback: direct_search() [No LLM]
+           └─ GameSearchTool only → Return raw results
     
-    # Optional Overrides
-    OLLAMA_MODEL=llama3.2:3b
-    OLLAMA_HOST=http://localhost:11434
-    CHROMA_DB_PATH=./chroma_db
-    ```
-
-4.  **Pull Local Model**
-    Ensure your local Ollama instance has the model loaded:
-    ```bash
-    ollama pull llama3.2:3b
-    ```
-
-## 🎮 Usage
-
-Run the main script to start the interactive assistant:
-
-```bash
-python src/rpgagents/main.py
+    ↓
+ConversationStore.add_message()
+    ├─ Store user message
+    └─ Store assistant response
+    
+    ↓
+Response to client
+    └─ conversation_id, answer, timestamp
 ```
 
-### Example Workflow
-1.  **Enter Game**: `Hollow Knight`
-2.  **Enter Query**: `How to get the Map`
-3.  **System Action**:
-    *   *First Run*: Usage **Gemini** to scrape the web -> Indexes data -> Saves Guide.
-    *   *Second Run*: Detects local data -> Uses **Ollama** (Free) -> Returns Guide instantly.
+### Search Strategy
 
-All generated guides are saved to the `output/` directory.
-
-## 🪟 Embeddable Game Slidebar
-
-The backend now includes an embeddable right-side slidebar assistant with persistent, per-game chat history.
-
-### Start API
-
-```bash
-uvicorn src.rpgagents.api:app --host 0.0.0.0 --port 8000 --reload
+**Scenario 1: First Query (No Cache)**
+```
+Query: "best Valorant agent for beginners?"
+  ↓
+crew_search() with Gemini LLM
+  ├─ Researcher searches ChromaDB → not found
+  └─ Fallback to web search
+     └─ Serper API returns 10 results
+        └─ Results indexed in ChromaDB ✅
+  ↓
+Game Expert formats: "Phoenix, Sage, Brimstone..."
+  ↓
+Response sent + stored in SQLite
 ```
 
-### Open Slidebar Widget
-
-```text
-http://localhost:8000/widget
+**Scenario 2: Cached Query**
+```
+Query: "Valorant agents for new players?"
+  ↓
+crew_search() with Gemini LLM
+  ├─ Researcher searches ChromaDB → FOUND! ✅
+  │  (distance 0.36 < 0.45 threshold)
+  └─ No web search needed
+  ↓
+Game Expert formats cached results
+  ↓
+Response sent instantly ⚡ (0 API calls)
 ```
 
-Use this URL in an in-game browser overlay (for example Steam Overlay browser, Overwolf webview, or OBS Browser Source).
-
-### Behavior
-
-* Toggle open/close from the top-right button.
-* Set a game name and create/select conversations.
-* Conversations are stored separately by game.
-* Message history persists across restarts in `knowledge/conversations.sqlite3`.
-* Enable "Auto-open when widget loads" to launch the slidebar immediately when the page is opened.
-
-### New API Endpoints
-
-* `GET /widget` - Serves the embeddable slidebar UI.
-* `POST /chat` - Sends a chat message and stores user/assistant turns.
-* `POST /conversations` - Creates a conversation.
-* `GET /conversations?game_name=<name>` - Lists conversations for a game.
-* `GET /conversations/{conversation_id}` - Fetches one conversation.
-* `GET /conversations/{conversation_id}/messages` - Fetches stored messages.
+**Scenario 3: Rate Limit Hit**
+```
+Query: "Elden Ring build?"
+  ↓
+crew_search() attempts → Gemini quota exceeded ❌
+  └─ Catches "429" or "RESOURCE_EXHAUSTED"
+  ↓
+Fallback: direct_search() [no LLM]
+  └─ Returns raw search results
+  ↓
+Response continues working ✅ (graceful degradation)
+```
 
 ## 🏗️ Architecture
 
-```text
-+------------+
-| User Input |
-+------+-----+
-       |
-       v
-+------+-------+
-| Smart Switch |
-+------+-------+
-       |
-       +-------------------------------------+
-       |                                     |
-       v (High Match < 0.45)                 v (No/Low Match)
-+------+------+                       +------+-------+
-| Local Cache |                       |  Web Search  |
-| (ChromaDB)  |                       | (DuckDuckGo) |
-+------+------+                       +------+-------+
-       |                                     |
-       |                                     v
-       |                              +------+-------+
-       |                              |  Ingestion   |
-       |                              |  & Indexing  |
-       |                              +------+-------+
-       |                                     |
-       v                                     v
-+------+-------+                      +------+-------+
-|  Ollama LLM  |                      |  Gemini LLM  |
-| (Student)    |                      |  (Teacher)   |
-+------+-------+                      +------+-------+
-       |                                     |
-       +------------------+------------------+
-                          |
-                          v
-                  +-------+-------+
-                  | CrewAI Agents |
-                  | (Researcher/  |
-                  |  Writer)      |
-                  +-------+-------+
-                          |
-                          v
-                  +-------+-------+
-                  |   Final Output|
-                  |  (Guide .md)  |
-                  +---------------+
+### Directory Structure
+```
+src/rpgagents/
+├── main.py                    # Entry point, CLI, API startup
+├── api.py                     # FastAPI app, 7 endpoints
+├── crew.py                    # CrewAI agents definition
+├── conversation_store.py      # SQLite conversation storage
+│
+├── config/
+│   ├── agents.yaml            # Agent personality/roles
+│   └── tasks.yaml             # Task descriptions/outputs
+│
+└── tools/
+    ├── game_search_tool.py    # RAG search + fallback logic
+    └── web_search_tool.py     # Serper API + DuckDuckGo
 ```
 
+### Database Schema
 
-## 🧪 Validation
+#### conversations table
+```sql
+CREATE TABLE conversations (
+    id TEXT PRIMARY KEY,
+    game_name TEXT NOT NULL,
+    title TEXT,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+)
+CREATE INDEX idx_game_name ON conversations(game_name)
+```
 
-This project includes a full system validation suite to ensure reliability.
-Run tests with:
+#### messages table
+```sql
+CREATE TABLE messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT FOREIGN KEY,
+    role TEXT,  -- 'user' or 'assistant'
+    content TEXT,
+    created_at TIMESTAMP
+)
+CREATE INDEX idx_conversation ON messages(conversation_id)
+```
+
+Location: `knowledge/conversations.sqlite3`
+
+### ChromaDB Structure
+
+**Location**: `chroma_db/`
+
+**Collections**: One per game
+- `game_valorant`
+- `game_hollow_knight`
+- `game_elden_ring`
+- etc.
+
+**Documents**: Web search results, indexed automatically
+- **Metadata**: game_name, source URL, timestamp
+- **Embedding**: Sentence Transformers (all-MiniLM-L6-v2)
+- **Distance Threshold**: 0.45 (strict relevance filter)
+
+## ⚙️ Configuration
+
+### Relevance Threshold (RAG)
+**File**: [tools/game_search_tool.py](src/rpgagents/tools/game_search_tool.py#L86)
+**Current**: `0.45`
+- Distance < 0.45 = confidence > 0.55 (return result)
+- Distance > 0.45 = trigger web search
+
+### Response Format
+**File**: [config/tasks.yaml](src/rpgagents/config/tasks.yaml)
+**Current**: 1-3 sentences maximum
+- Direct answer
+- Key details/tips
+- Source URL if available
+
+### LLM Settings
+**File**: [crew.py](src/rpgagents/crew.py)
+**Temperature**: 0.3 (more deterministic, less creative)
+**Model**: `gemini-flash-latest`
+**Max Tokens**: None (default)
+
+### Web Search
+**Primary**: Serper API (google.serper.dev)
+**Fallback**: DuckDuckGo (ddgs package)
+**Filters**:
+- Language: English only
+- Domains: Gaming wikis only (fandom.com, fextralife.com, ign.com, etc.)
+- Blocks: Non-English sites (baidu.com, qq.com, etc.)
+
+## 🔄 Error Handling
+
+### Rate Limit (429)
+**Behavior**:
+- Detects `"429"` or `"RESOURCE_EXHAUSTED"` in error
+- Automatically falls back to direct_search()
+- No LLM formatting (returns raw results)
+- System continues working ✅
+
+**Example Log**:
+```
+[INFO] Rate limit detected. Fallback: direct_search()
+[INFO] Returning results without LLM formatting
+```
+
+### No Results
+**Behavior**:
+1. ChromaDB search → No matches above threshold
+2. Falls back to web search
+3. Caches new results
+4. Retries with cache on future queries
+
+### Network Errors
+**Behavior**:
+- Serper API down → Falls back to DuckDuckGo
+- DuckDuckGo also down → Returns cached results only
+- Returns error message to client if no fallback available
+
+## 📊 Technologies
+
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| **API** | FastAPI 0.104+ | REST endpoints |
+| **Server** | Uvicorn | ASGI server |
+| **RAG** | ChromaDB | Semantic search |
+| **Embeddings** | Sentence Transformers | Vector generation |
+| **Search** | Serper API + DuckDuckGo | Web search |
+| **Web Scraping** | BeautifulSoup4 | Extract search results |
+| **LLM** | Gemini Flash | Response formatting |
+| **Agents** | CrewAI | Multi-agent orchestration |
+| **Database** | SQLite | Message storage |
+| **Task Queue** | Optional: Celery/Redis | Async processing |
+
+## 🧪 Testing
+
+### Test Chat Endpoint
 ```bash
-python tests/full_system_validation.py
+curl -X POST http://127.0.0.1:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"game_name":"Valorant","message":"best agent for beginners?"}'
 ```
 
-## 🤝 Contributing
+### Test Caching
+1. Query 1: "Valorant agent tips" → uses web search
+2. Query 2: Same query again → should be instant (cached)
+3. Check logs for `"Local Source"` vs `"Web Index"`
 
-Contributions are welcome! Please ensure any new features are covered by the validation script.
+### Test Rate Limit Fallback
+1. Make 20+ queries to hit Gemini quota
+2. Next query should return results (no error)
+3. Check logs for `"Fallback: direct_search()"`
 
-## ✍️ Author
+### Check Database
+```bash
+sqlite3 knowledge/conversations.sqlite3
+sqlite> SELECT * FROM conversations;
+sqlite> SELECT * FROM messages;
+```
 
-*   **Reigen002** - *Initial work* - [GitHub Profile](https://github.com/reigen002)
+### Monitor ChromaDB
+```python
+from chromadb import Client
+client = Client()
+collection = client.get_collection("game_valorant")
+print(f"Documents in collection: {collection.count()}")
+```
+
+## 🚀 Production Deployment
+
+### Optimizations
+1. **Disable reload**: Remove `reload=True` in main.py
+2. **Use Gunicorn**: `gunicorn src.rpgagents.api:app --workers 4`
+3. **Environment Variables**: Use `python-dotenv` (already integrated)
+4. **Database**: Consider migrating from SQLite to PostgreSQL for multi-user
+5. **Caching**: Add Redis for query result caching
+
+### Security
+1. Enable CORS only for trusted domains
+2. Add API key authentication for `/chat` endpoint
+3. Rate limit endpoints (FastAPI middleware)
+4. Validate input length (prevent injection)
+5. Use HTTPS in production
+
+### Scaling
+1. Implement request queuing (Celery + Redis)
+2. Shard ChromaDB collections by game/region
+3. Cache Gemini responses in Redis
+4. Use connection pooling for SQLite → PostgreSQL
+5. Monitor API quota usage
+
+## 📝 Known Limitations
+
+1. **ChromaDB Size**: In-memory by default, grows with cached queries
+   - Solution: Implement periodic cleanup or use persistent backend
+
+2. **Gemini Quota**: 20 requests/day on free tier
+   - Solution: Automatic fallback works ✅ or upgrade tier
+
+3. **Serper Quota**: Limited free tier calls
+   - Solution: Prioritize cached searches, upgrade if needed
+
+4. **SQLite Concurrency**: Not ideal for multi-user
+   - Solution: Use PostgreSQL in production
+
+## 🔧 Troubleshooting
+
+### "Cannot find module rpgagents"
+```bash
+cd backend/rpgagents
+pip install -e . --force-reinstall --no-deps
+```
+
+### "429 RESOURCE_EXHAUSTED"
+- ✅ Expected - system auto-falls back
+- Check logs for confirmation
+- Upgrade API tier if frequently hitting limit
+
+### "No results found"
+1. Verify ChromaDB is initialized: `ls chroma_db/`
+2. Check distance threshold isn't too strict
+3. Try web search with: `SERPER_API_KEY` set
+
+### "API won't start"
+1. Verify port 8000 is free: `lsof -i :8000`
+2. Check Python version: `python --version` (need 3.10+)
+3. Verify dependencies: `pip list | grep fastapi`
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-Copyright (c) 2026 Reigen002. All rights reserved.
+MIT License - See [LICENSE](../../LICENSE) file
