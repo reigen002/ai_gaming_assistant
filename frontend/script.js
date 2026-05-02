@@ -18,6 +18,10 @@ class GameAssistantSidebar {
         this.resultsList = document.getElementById('resultsList');
         this.mainContent = document.getElementById('mainContent');
 
+        // API Configuration
+        this.API_BASE = 'http://localhost:8000'; // Change this if backend runs on different port
+        this.currentConversationId = null;
+
         this.isResizing = false;
         this.startX = 0;
         this.startWidth = 0;
@@ -167,9 +171,9 @@ class GameAssistantSidebar {
             // Display user query
             this.addResultItem(query, 'user');
 
-            // For now, just show a simulated response
-            // When backend is ready, replace with actual API call
-            await this.simulateResponse(gameName, query);
+            // Send to backend API
+            const answer = await this.submitToBackend(gameName, query);
+            this.addResultItem(answer, 'assistant');
 
             // Clear inputs after successful submission
             this.queryInput.value = '';
@@ -181,20 +185,6 @@ class GameAssistantSidebar {
         } finally {
             this.submitBtn.disabled = false;
         }
-    }
-
-    async simulateResponse(gameName, query) {
-        // Simulate a delay (like waiting for backend response)
-        await new Promise(resolve => setTimeout(resolve, 800));
-
-        const responses = [
-            `I found information about "${gameName}". Here are some tips for your query: "${query}". Try exploring different strategies and areas.`,
-            `Based on your question about "${query}" in ${gameName}, consider checking online wikis and community forums for the most up-to-date guides.`,
-            `For "${query}" in ${gameName}: This is a common question. The key is to practice and learn the patterns. Good luck, adventurer!`
-        ];
-
-        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-        this.addResultItem(randomResponse, 'assistant');
     }
 
     // ============ UI Updates ============
@@ -225,7 +215,8 @@ class GameAssistantSidebar {
             isOpen: this.isOpen(),
             sidebarWidth: this.sidebarWidth,
             gameName: this.gameNameInput.value,
-            query: this.queryInput.value
+            query: this.queryInput.value,
+            conversationId: this.currentConversationId
         };
         localStorage.setItem('gameAssistantState', JSON.stringify(state));
     }
@@ -260,36 +251,53 @@ class GameAssistantSidebar {
             if (state.query) {
                 this.queryInput.value = state.query;
             }
+
+            // Restore conversation ID
+            if (state.conversationId) {
+                this.currentConversationId = state.conversationId;
+            }
         } catch (error) {
             console.error('Error restoring state:', error);
         }
     }
 
-    // ============ API Integration (Future) ============
+    // ============ API Integration ============
 
     /**
-     * Ready for backend integration.
-     * Replace simulateResponse() with this to connect to FastAPI backend.
+     * Submit query to FastAPI backend /chat endpoint
      */
     async submitToBackend(gameName, query) {
-        const response = await fetch('http://localhost:8000/chat', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                game_name: gameName,
-                message: query,
-                conversation_id: null // Will be set by backend
-            })
-        });
+        try {
+            const response = await fetch(`${this.API_BASE}/chat`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    game_name: gameName,
+                    message: query,
+                    conversation_id: this.currentConversationId
+                })
+            });
 
-        if (!response.ok) {
-            throw new Error(`Backend error: ${response.statusText}`);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || `Backend error: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            
+            // Store conversation ID for future queries
+            if (data.conversation_id) {
+                this.currentConversationId = data.conversation_id;
+                this.saveState();
+            }
+
+            return data.answer;
+        } catch (error) {
+            console.error('Backend API error:', error);
+            throw new Error(`Failed to connect to backend: ${error.message}`);
         }
-
-        const data = await response.json();
-        return data.answer;
     }
 }
 

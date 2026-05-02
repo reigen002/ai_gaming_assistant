@@ -76,28 +76,30 @@ class GameSearchTool(BaseTool):
                 results = perform_search(collection_name)
                 
                 # Lower distance = better match.
-                # Threshold lowered to 0.45 to be stricter. 0.5-0.6 range was capturing loose matches.
+                # Stricter threshold: 0.45 filters out low-confidence matches
+                # 0.3-0.4 = excellent, 0.4-0.5 = good, 0.5+ = poor
                 best_distance = results['distances'][0][0] if results['distances'] and results['distances'][0] else 1.0
                 
-                if best_distance > 0.65:
-                    logger.warning(f"Local result relevance low (distance {best_distance:.4f} > 0.65). Triggering Web Search fallback.")
+                if best_distance > 0.45:
+                    logger.warning(f"Local result relevance low (distance {best_distance:.4f} > 0.45). Triggering Web Search fallback.")
                     # Fall through to web search logic
                 # Enhanced Retrieval Strategy
                 # 1. Fetch more candidates (n=10) to increase recall
-                # 2. Filter strictly by distance (threshold < 0.65) to ensure precision
+                # 2. Filter strictly by distance (threshold < 0.45) to ensure high precision
+                # Only return results with confidence > 0.55 (distance < 0.45)
                 
                 valid_docs = []
                 if results['documents'] and results['documents'][0]:
                     for i, (doc, dist, meta) in enumerate(zip(results['documents'][0], results['distances'][0], results['metadatas'][0])):
-                        if dist < 0.65:
+                        if dist < 0.45:  # Stricter threshold
                             source = meta.get('source', 'Local Cache')
                             valid_docs.append(f"**[Local Source {i+1} (Conf: {1-dist:.2f}): {source}]**\n{doc}\n")
                 
                 if valid_docs:
-                    logger.info(f"✅ Found {len(valid_docs)} valid local chunks (Distance < 0.65)")
+                    logger.info(f"✅ Found {len(valid_docs)} valid local chunks (Distance < 0.45, Confidence > 0.55)")
                     return "\n---\n".join(valid_docs)
                 else:
-                    logger.warning(f"⚠️ Local results found but none met relevance threshold (< 0.65). Best: {best_distance:.4f}")
+                    logger.warning(f"⚠️ Local results found but none met strict relevance threshold (< 0.45). Best: {best_distance:.4f}. Using web search instead.")
                     # Fall through to web search logic
 
             # --- Fallback: No local docs or no results found ---

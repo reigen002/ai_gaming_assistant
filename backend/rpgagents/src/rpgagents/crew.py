@@ -89,7 +89,7 @@ class Rpgagents:
 
     @task
     def reporting_task(self) -> Task:
-        """Task to create the final guide"""
+        """Task to create the final guide - ENABLED for full formatting"""
         return Task(
             config=self.tasks_config['reporting_task'],
             context=[self.research_task()],
@@ -97,10 +97,10 @@ class Rpgagents:
 
     @crew
     def crew(self) -> Crew:
-        """Creates the RPG Gaming Assistant crew"""
+        """Creates the RPG Gaming Assistant crew - Full setup with both agents"""
         return Crew(
-            agents=self.agents,
-            tasks=self.tasks,
+            agents=self.agents,  # Both researcher and game_expert
+            tasks=self.tasks,  # Both research and reporting tasks
             process=Process.sequential,
             verbose=True,
             memory=False,

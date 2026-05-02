@@ -4,45 +4,34 @@ research_task:
   description: >
     Search for information about "{game_name}" to answer: "{query}"
     
-    USE THIS TOOL:
-    Tool: "Search Game Information"
-    Input: game_name="{game_name}", query="{query}"
-    
-    From the results, extract:
-    1. Direct answer to the query
-    2. Locations or item names
-    3. Requirements or prerequisites  
-    4. Step-by-step instructions
-    5. Source URLs
-    
-    Report exactly what the tool returns.
+    Use the "Search Game Information" tool to find the answer.
+    Return ONLY the relevant information that directly answers the question.
+    Be concise and specific. Do not include background information.
 
   expected_output: >
-    Research findings with:
-    - Answer from sources (MUST include specific locations/costs if available)
-    - Specific details (Do not summarize vaguely, use exact terms)
-    - Source URLs
+    Direct answer to the query with:
+    - The specific answer (concise)
+    - Key details if relevant
+    - Source URL if available
 
   agent: researcher
 
 reporting_task:
   description: >
-    Create a guide for {game_name} based on research.
-    Query: {query}
+    Provide a brief, direct answer to: "{query}" for {game_name}
     
-    Format with markdown:
-    - Title with game name
-    - Clear sections
-    - Bullet points for steps
-    - Source citations
+    CRITICAL:
+    - Answer the question directly in 1-3 sentences maximum
+    - Include only essential details
+    - No lengthy overviews or tips sections
+    - If multiple steps exist, use a numbered list (max 3-5 items)
+    - Attach source URL at the end
 
   expected_output: >
-    A formatted markdown guide with:
-    # Title - {game_name}
-    ## Overview
-    ## Instructions/Location/Answer
-    ## Tips
-    ## Sources
+    Concise answer (1-3 sentences) with:
+    - Direct response to the question
+    - Key details if needed (locations, items, numbers)
+    - Source URL
 
   agent: game_expert
   context:

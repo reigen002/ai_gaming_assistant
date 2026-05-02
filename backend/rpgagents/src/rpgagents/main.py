@@ -2,14 +2,25 @@
 import sys
 import os
 import warnings
+import logging
 from datetime import datetime
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+logger = logging.getLogger(__name__)
+
 from rpgagents.crew import Rpgagents
+from rpgagents.tools.game_search_tool import GameSearchTool
 
 
+def direct_search(game_name: str, query: str) -> str:
+    """Direct search using GameSearchTool - NO LLM CALLS (faster, free)"""
+    try:
+        tool = GameSearchTool()
+        return tool._run(game_name=game_name, query=query)
+    except Exception as e:
+        return f"Search error: {str(e)}"
 
 
 def run():
@@ -98,16 +109,44 @@ def run():
         return 1
 
 
-def quick_search(game_name: str, query: str):
-    """Programmatic search - for API/script usage"""
+def crew_search(game_name: str, query: str):
+    """Primary method: Use crew with LLM for formatted responses"""
     inputs = {
         'game_name': game_name,
         'query': query,
         'current_year': str(datetime.now().year)
     }
+    try:
+        result = Rpgagents().crew().kickoff(inputs=inputs)
+        return result.raw if hasattr(result, 'raw') else str(result)
+    except Exception as e:
+        error_msg = str(e)
+        # Check for rate limit error
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg or "quota" in error_msg.lower():
+            logger.warning(f"⚠️ Rate limit hit, falling back to direct search (no LLM): {error_msg}")
+            return direct_search(game_name, query)
+        raise
 
-    result = Rpgagents().crew().kickoff(inputs=inputs)
-    return result.raw if hasattr(result, 'raw') else str(result)
+
+def quick_search(game_name: str, query: str):
+    """Programmatic search - tries crew first (with LLM), falls back to direct search on rate limit"""
+    try:
+        return crew_search(game_name, query)
+    except Exception as e:
+        logger.warning(f"Crew search failed: {str(e)}, falling back to direct search")
+        return direct_search(game_name, query)
+
+
+def start_api(host: str = "127.0.0.1", port: int = 8000):
+    """Start the FastAPI server"""
+    import uvicorn
+    from rpgagents.api import app
+    
+    print(f"🚀 Starting RPG Gaming Assistant API on {host}:{port}")
+    print(f"📖 API Docs available at http://{host}:{port}/docs")
+    print(f"📊 ReDoc available at http://{host}:{port}/redoc")
+    
+    uvicorn.run(app, host=host, port=port, reload=False)
 
 
 def train():
@@ -164,12 +203,18 @@ def test():
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         command = sys.argv[1]
-        if command == "train":
+        if command == "api":
+            start_api()
+        elif command == "train":
             sys.exit(train())
         elif command == "replay":
             sys.exit(replay())
         elif command == "test":
             sys.exit(test())
+        else:
+            print(f"Unknown command: {command}")
+            print("Available commands: api, train, replay, test")
+            sys.exit(1)
 
     sys.exit(run())
 
