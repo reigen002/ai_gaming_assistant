@@ -15,11 +15,18 @@ class GameSearchInput(BaseModel):
 class GameSearchTool(BaseTool):
     name: str = "Search Game Information"
     description: str = (
-        "Primary search tool. Searches both local documentation AND the web. "
+        "Primary search tool. Searches local documentation cache first, then the web as fallback. "
         "Always use this tool for any game query. "
-        "Input: 'game_name' (e.g. 'Hollow Knight') and 'query' (e.g. 'how to get void heart')."
+        "Input: 'game_name' (e.g. 'Hollow Knight') and 'query' (e.g. 'how to get void heart'). "
+        "Returns concise answer snippets with source citations. DO NOT echo the raw output — "
+        "synthesize the facts into your response."
     )
     args_schema: type[BaseModel] = GameSearchInput
+
+    # Max characters per snippet shown to the agent
+    _SNIPPET_LIMIT: int = 300
+    # Max number of snippets to return (keeps agent context tight)
+    _MAX_SNIPPETS: int = 3
 
     _chroma_client: chromadb.PersistentClient = PrivateAttr()
     _embeddings: object = PrivateAttr()
@@ -41,6 +48,26 @@ class GameSearchTool(BaseTool):
             logger.warning(f"Failed to load embeddings: {e}")
             self._embeddings = None
 
+    @staticmethod
+    def _is_nav_chunk(text: str) -> bool:
+        """Return True if text looks like a wiki navigation menu, not article prose."""
+        import re
+        # Strip whitespace and count characters
+        stripped = text.strip()
+        if len(stripped) < 80:
+            return True  # Too short to be useful prose
+        # Nav menus have many consecutive UppercaseWord tokens with no sentence structure
+        # e.g. "WorldWorld InformationLocationsGreymane Camp..."
+        # Heuristic: if >40% of 'words' are CamelCase/AllCaps and there are no sentence-ending chars
+        words = re.findall(r'[A-Za-z]+', stripped)
+        if not words:
+            return True
+        upper_words = sum(1 for w in words if w[0].isupper() and len(w) > 2)
+        has_sentence = bool(re.search(r'[.!?]', stripped))
+        nav_ratio = upper_words / len(words)
+        # Nav if >60% uppercase-starting words AND no sentence punctuation
+        return nav_ratio > 0.60 and not has_sentence
+
     def _run(self, game_name: str, query: str) -> str:
         """Search indexed game documentation"""
         try:
@@ -57,50 +84,73 @@ class GameSearchTool(BaseTool):
             # Check if collection exists
             existing_collections = [c.name for c in self._chroma_client.list_collections()]
             
-            # Helper to perform the search
-            def perform_search(coll_name):
-                 collection = self._chroma_client.get_collection(
+            # Helper to perform the vector search
+            def perform_search(coll_name, n: int = 5):
+                collection = self._chroma_client.get_collection(
                     name=coll_name,
                     embedding_function=self._embeddings
                 )
-                 result = collection.query(
+                result = collection.query(
                     query_texts=[query],
-                    n_results=10,
+                    n_results=n,
                     include=["documents", "metadatas", "distances"]
                 )
-                 if result['distances'] and result['distances'][0]:
-                     logger.info(f"🔍 Search Distances: {result['distances'][0]}")
-                 return result
+                if result['distances'] and result['distances'][0]:
+                    logger.info(f"🔍 Search Distances: {result['distances'][0]}")
+                return result
 
             if collection_name in existing_collections:
-                results = perform_search(collection_name)
-                
+                results = perform_search(collection_name, n=5)
+
                 # Lower distance = better match.
-                # Stricter threshold: 0.45 filters out low-confidence matches
-                # 0.3-0.4 = excellent, 0.4-0.5 = good, 0.5+ = poor
-                best_distance = results['distances'][0][0] if results['distances'] and results['distances'][0] else 1.0
-                
+                # Threshold 0.45: 0.3-0.4 = excellent, 0.4-0.5 = good, 0.5+ = poor
+                best_distance = (
+                    results['distances'][0][0]
+                    if results['distances'] and results['distances'][0]
+                    else 1.0
+                )
+
                 if best_distance > 0.45:
-                    logger.warning(f"Local result relevance low (distance {best_distance:.4f} > 0.45). Triggering Web Search fallback.")
-                    # Fall through to web search logic
-                # Enhanced Retrieval Strategy
-                # 1. Fetch more candidates (n=10) to increase recall
-                # 2. Filter strictly by distance (threshold < 0.45) to ensure high precision
-                # Only return results with confidence > 0.55 (distance < 0.45)
-                
-                valid_docs = []
-                if results['documents'] and results['documents'][0]:
-                    for i, (doc, dist, meta) in enumerate(zip(results['documents'][0], results['distances'][0], results['metadatas'][0])):
-                        if dist < 0.45:  # Stricter threshold
-                            source = meta.get('source', 'Local Cache')
-                            valid_docs.append(f"**[Local Source {i+1} (Conf: {1-dist:.2f}): {source}]**\n{doc}\n")
-                
-                if valid_docs:
-                    logger.info(f"✅ Found {len(valid_docs)} valid local chunks (Distance < 0.45, Confidence > 0.55)")
-                    return "\n---\n".join(valid_docs)
+                    logger.warning(
+                        f"Local result relevance low (distance {best_distance:.4f} > 0.45). "
+                        "Triggering Web Search fallback."
+                    )
+                    # Fall through to web search logic below
                 else:
-                    logger.warning(f"⚠️ Local results found but none met strict relevance threshold (< 0.45). Best: {best_distance:.4f}. Using web search instead.")
-                    # Fall through to web search logic
+                    # Collect chunks that meet the confidence threshold
+                    valid_snippets = []
+                    for doc, dist, meta in zip(
+                        results['documents'][0],
+                        results['distances'][0],
+                        results['metadatas'][0],
+                    ):
+                        if dist < 0.45:
+                            source = meta.get('source', 'local cache')
+                            snippet = doc.strip()[: self._SNIPPET_LIMIT]
+                            if len(doc.strip()) > self._SNIPPET_LIMIT:
+                                snippet += "..."
+                            conf_pct = int((1 - dist) * 100)
+                            valid_snippets.append(
+                                f"{snippet}\n   — Source: {source} (confidence {conf_pct}%)"
+                            )
+
+                    if valid_snippets:
+                        logger.info(
+                            f"✅ Returning {len(valid_snippets)} local cache hits (dist < 0.45)"
+                        )
+                        bullets = "\n".join(
+                            f"• {s}" for s in valid_snippets[: self._MAX_SNIPPETS]
+                        )
+                        return (
+                            f"Relevant information about {game_name} from local cache:\n"
+                            f"{bullets}"
+                        )
+                    else:
+                        logger.warning(
+                            f"⚠️ No chunks met threshold. Best: {best_distance:.4f}. "
+                            "Falling back to web search."
+                        )
+                        # Fall through to web search logic below
 
             # --- Fallback: No local docs or no results found ---
             # Trigger web search
@@ -124,20 +174,45 @@ class GameSearchTool(BaseTool):
             logger.info(f"Indexing {len(docs_to_index)} new documents for {normalized_game_id}")
             self.index_documents(normalized_game_id, docs_to_index, sources_to_index)
             
-            # Search again
-            # We assume index_documents created the collection
-            results = perform_search(collection_name)
-            
-            if not results['documents'] or not results['documents'][0]:
-                 return "Indexed new content but search yielded no results. This is unexpected."
+            # Search the freshly-indexed collection
+            results = perform_search(collection_name, n=5)
 
-             # Format results from the new search
-            formatted = []
-            for i, (doc, metadata) in enumerate(zip(results['documents'][0], results['metadatas'][0]), 1):
-                source = metadata.get('source', 'Web Index')
-                formatted.append(f"**[Web Index {i}: {source}]**\n{doc}\n")
-            
-            return "\n---\n".join(formatted)
+            if not results['documents'] or not results['documents'][0]:
+                return "Indexed new content but search yielded no results. This is unexpected."
+
+            # Build plain-prose bullets — skip nav-menu chunks, cap at _MAX_SNIPPETS
+            snippets = []
+            for doc, metadata in zip(
+                results['documents'][0], results['metadatas'][0]
+            ):
+                text = doc.strip()
+                if self._is_nav_chunk(text):
+                    logger.debug("Skipping nav-menu chunk")
+                    continue
+                source = metadata.get(
+                    'source', web_results[0]['href'] if web_results else 'web'
+                )
+                snippet = text[: self._SNIPPET_LIMIT]
+                if len(text) > self._SNIPPET_LIMIT:
+                    snippet += "..."
+                snippets.append(f"{snippet}  (source: {source})")
+                if len(snippets) >= self._MAX_SNIPPETS:
+                    break
+
+            if not snippets:
+                # All chunks were nav menus — return the raw snippet from the first web result
+                fallback = web_results[0]['content'][: self._SNIPPET_LIMIT] if web_results else ""
+                source_url = web_results[0]['href'] if web_results else ''
+                return (
+                    f"Information about {game_name}:\n"
+                    f"• {fallback}  (source: {source_url})"
+                )
+
+            bullets = "\n".join(f"• {s}" for s in snippets)
+            return (
+                f"Relevant information about {game_name} from the web:\n"
+                f"{bullets}"
+            )
 
         except Exception as e:
             logger.error(f"Local search error: {e}")

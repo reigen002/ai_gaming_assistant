@@ -2,7 +2,7 @@
 
 **An intelligent, embeddable game sidebar powered by RAG, Web Search, and Smart LLM Fallback.**
 
-The **RPG Gaming Assistant** is a full-stack application with a resizable, toggleable sidebar UI that works in-game. It answers game-related questions using a hybrid approach: cached knowledge (ChromaDB), web search (Serper API + DuckDuckGo), and AI synthesis (Gemini Flash), with intelligent fallback when API rate limits are reached.
+The **RPG Gaming Assistant** is a full-stack application with a resizable, toggleable sidebar UI that works in-game. It answers game-related questions using a hybrid approach: cached knowledge (ChromaDB), web search (Serper API + DuckDuckGo), and AI synthesis (Groq), with intelligent fallback when API rate limits are reached.
 
 ## ✨ Key Features
 
@@ -13,7 +13,7 @@ The **RPG Gaming Assistant** is a full-stack application with a resizable, toggl
     *   **Web Fallback**: Serper API + DuckDuckGo for non-cached queries
     *   **Auto-Caching**: Web results automatically indexed for future queries
 *   **⚡ Smart LLM Switching**:
-    *   **Primary**: Gemini Flash for formatted, concise responses (1-3 sentences)
+    *   **Primary**: Groq llama-3.1-70b-versatile for formatted, concise responses (1-3 sentences)
     *   **Fallback**: Direct search (no LLM) if rate limit (429) is hit
     *   **Auto-Recovery**: Seamlessly switches without user intervention
 *   **🔍 RAG Pipeline**:
@@ -28,7 +28,7 @@ The **RPG Gaming Assistant** is a full-stack application with a resizable, toggl
 | Component | Requirement |
 |-----------|------------|
 | **Python** | 3.10+ |
-| **Gemini API Key** | [Get here](https://aistudio.google.com/) |
+| **Groq API Key** | [Get here](https://console.groq.com/keys) |
 | **Serper API Key** | [Get here](https://serper.dev/) |
 
 ### Installation & Setup
@@ -54,7 +54,7 @@ The **RPG Gaming Assistant** is a full-stack application with a resizable, toggl
 
 4. **Configure API keys** (create `.env` in project root)
    ```env
-   GEMINI_API_KEY=your_key_here
+    GROQ_API_KEY=your_key_here
    SERPER_API_KEY=your_key_here
    CHROMA_DB_PATH=./chroma_db
    ```

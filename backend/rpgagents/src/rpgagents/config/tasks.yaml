@@ -3,16 +3,20 @@
 research_task:
   description: >
     Search for information about "{game_name}" to answer: "{query}"
-    
+
     Use the "Search Game Information" tool to find the answer.
-    Return ONLY the relevant information that directly answers the question.
-    Be concise and specific. Do not include background information.
+    The tool returns numbered snippets with source citations.
+
+    IMPORTANT: Extract the factual content from each snippet and synthesize a
+    concise answer. Do NOT echo the raw snippet format ([N], [Cache], [Web],
+    "confidence %", or "\u2014 Source:" markers) in your output.
+    Return only the facts plus a single source URL.
 
   expected_output: >
-    Direct answer to the query with:
-    - The specific answer (concise)
-    - Key details if relevant
-    - Source URL if available
+    Synthesized answer to the query containing:
+    - The specific answer (1-3 sentences, concise)
+    - Key supporting details if relevant
+    - One source URL
 
   agent: researcher
 

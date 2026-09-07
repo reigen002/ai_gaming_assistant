@@ -5,7 +5,9 @@ description = "rpgagents using crewAI"
 authors = [{ name = "Your Name", email = "you@example.com" }]
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "crewai[google-genai,tools]==1.7.2",
+    "crewai[tools]==1.7.2",
+    "groq>=0.18.0",
+    "PyYAML>=6.0",
     "langchain-ollama>=1.0.1",
     "langchain-text-splitters>=1.1.0",
     "litellm>=1.75.3",
@@ -33,6 +35,11 @@ run_with_trigger = "rpgagents.main:run_with_trigger"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# The rpgagents package lives inside backend/rpgagents/src/
+packages = ["backend/rpgagents/src/rpgagents"]
+
 
 [tool.crewai]
 type = "crew"

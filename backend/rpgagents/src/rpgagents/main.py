@@ -1,8 +1,15 @@
 """RPG Gaming Assistant - Dynamic Multi-Game Support"""
+"""
+Commands - netstat -ano | findstr :8000
+# grab the PID from last column, then:
+taskkill /PID <PID> /F
+"""
 import sys
 import os
 import warnings
 import logging
+import subprocess
+import webbrowser
 from datetime import datetime
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
@@ -74,7 +81,7 @@ def run():
         # We now rely on the Agent to perform the search using its tools.
         print(f"\n🚀 Starting Agent Crew (Cloud-Only)...")
         
-        # Initialize with default (Gemini)
+        # Initialize with default (Groq)
         rpg_agents = Rpgagents()
         result = rpg_agents.crew().kickoff(inputs=inputs)
         result_text = result.raw if hasattr(result, 'raw') else str(result)
@@ -109,8 +116,59 @@ def run():
         return 1
 
 
+def rag_then_format(game_name: str, query: str) -> str:
+    """
+    Two-step pipeline with strict role separation:
+      Step 1 — Pure RAG retrieval via GameSearchTool (ChromaDB → web fallback).
+               Zero LLM calls — no agent loop, no tool-calling decisions by LLM.
+      Step 2 — Groq LLM called exactly once with retrieved snippets to format
+               a clean answer. LLM receives pre-retrieved text; it cannot search.
+    Falls back to raw snippets if LLM formatting fails (rate limit, etc).
+    """
+    # ── Step 1: RAG retrieval — no LLM involved ─────────────────────────────
+    logger.info(f"📚 RAG retrieval: '{query}' for '{game_name}'")
+    tool = GameSearchTool()
+    raw_snippets = tool._run(game_name=game_name, query=query)
+
+    if not raw_snippets or raw_snippets.startswith("Error"):
+        logger.warning("RAG retrieval returned no usable results")
+        return raw_snippets or "No information found."
+
+    # ── Step 2: LLM for formatting only — receives snippets, cannot search ──
+    try:
+        from groq import Groq
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+        prompt = (
+            f"You are a concise RPG game guide assistant for {game_name}.\n"
+            f"Using ONLY the retrieved information below, answer the player's question "
+            f"in 2–4 sentences. End with 'Source: <url>' if a URL is present.\n"
+            f"Do NOT add any information not present in the snippets.\n\n"
+            f"Player question: {query}\n\n"
+            f"Retrieved information:\n{raw_snippets}\n\n"
+            f"Answer:"
+        )
+
+        response = client.chat.completions.create(
+            model="qwen/qwen3.6-27b",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=2048,
+        )
+        formatted = response.choices[0].message.content.strip()
+        # Strip <think>...</think> reasoning blocks (qwen reasoning model outputs these)
+        import re
+        formatted = re.sub(r"<think>.*?</think>", "", formatted, flags=re.DOTALL).strip()
+        logger.info(f"✅ LLM formatted answer ({len(formatted)} chars)")
+        return formatted
+
+    except Exception as e:
+        logger.warning(f"⚠️ LLM formatting failed ({e}), returning raw snippets")
+        return raw_snippets
+
+
 def crew_search(game_name: str, query: str):
-    """Primary method: Use crew with LLM for formatted responses"""
+    """Full CrewAI agent loop — used only by train/replay/test CLI commands."""
     inputs = {
         'game_name': game_name,
         'query': query,
@@ -121,19 +179,22 @@ def crew_search(game_name: str, query: str):
         return result.raw if hasattr(result, 'raw') else str(result)
     except Exception as e:
         error_msg = str(e)
-        # Check for rate limit error
         if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg or "quota" in error_msg.lower():
-            logger.warning(f"⚠️ Rate limit hit, falling back to direct search (no LLM): {error_msg}")
+            logger.warning(f"⚠️ Rate limit hit, falling back to direct RAG: {error_msg}")
             return direct_search(game_name, query)
         raise
 
 
 def quick_search(game_name: str, query: str):
-    """Programmatic search - tries crew first (with LLM), falls back to direct search on rate limit"""
+    """
+    Primary API search path.
+    Retrieval: GameSearchTool (ChromaDB → web) — zero LLM.
+    Formatting: Groq LLM called once on already-retrieved snippets.
+    """
     try:
-        return crew_search(game_name, query)
+        return rag_then_format(game_name, query)
     except Exception as e:
-        logger.warning(f"Crew search failed: {str(e)}, falling back to direct search")
+        logger.warning(f"rag_then_format failed ({e}), falling back to direct search")
         return direct_search(game_name, query)
 
 
@@ -200,11 +261,110 @@ def test():
     return 0
 
 
+def start_all(backend_host: str = "127.0.0.1", backend_port: int = 8000, frontend_port: int = 3000):
+    """Start both backend API and frontend server together"""
+    import time
+    
+    print("\n" + "=" * 70)
+    print("🎮 RPG GAMING ASSISTANT - Full Stack Startup")
+    print("=" * 70)
+    
+    # Get the project root
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    backend_dir = script_dir  # Backend working directory (where main.py is)
+    frontend_dir = os.path.abspath(os.path.join(script_dir, '..', '..', '..', '..', 'frontend'))
+    
+    print(f"\n📁 Backend directory: {backend_dir}")
+    print(f"📁 Frontend directory: {frontend_dir}")
+    
+    processes = []
+    
+    try:
+        # Start backend API using direct command (more reliable)
+        print(f"\n🚀 Starting Backend API on {backend_host}:{backend_port}...")
+        backend_process = subprocess.Popen(
+            [sys.executable, "main.py", "api"],
+            cwd=backend_dir
+        )
+        processes.append(("Backend API", backend_process))
+        print("✅ Backend API process started")
+        
+        # Wait for backend to be ready
+        time.sleep(5)
+        
+        # Start frontend server
+        print(f"\n🚀 Starting Frontend Server on http://localhost:{frontend_port}...")
+        frontend_process = subprocess.Popen(
+            [sys.executable, "-m", "http.server", str(frontend_port)],
+            cwd=frontend_dir
+        )
+        processes.append(("Frontend Server", frontend_process))
+        print("✅ Frontend Server process started")
+        
+        # Wait a moment then open browser
+        time.sleep(2)
+        print("\n" + "=" * 70)
+        print("✅ BOTH SERVERS ARE RUNNING!")
+        print("=" * 70)
+        print(f"🌐 Frontend:    http://localhost:{frontend_port}")
+        print(f"📖 Backend API: http://{backend_host}:{backend_port}")
+        print(f"📊 API Docs:    http://{backend_host}:{backend_port}/docs")
+        print("\n⌨️  Press Ctrl+C to stop both servers")
+        print("=" * 70 + "\n")
+        
+        # Try to open browser
+        try:
+            webbrowser.open(f"http://localhost:{frontend_port}")
+            print("🌐 Opening browser...")
+        except Exception as e:
+            print(f"⚠️  Could not auto-open browser: {e}")
+        
+        # Keep processes running
+        while True:
+            time.sleep(1)
+            # Check if any process has died
+            for name, proc in processes:
+                if proc.poll() is not None:
+                    print(f"\n❌ {name} has stopped unexpectedly")
+                    # Kill remaining processes
+                    for _, p in processes:
+                        try:
+                            p.terminate()
+                        except:
+                            pass
+                    return 1
+    
+    except KeyboardInterrupt:
+        print("\n\n🛑 Shutting down servers...")
+    except Exception as e:
+        print(f"\n❌ Error: {e}")
+        return 1
+    finally:
+        # Clean up processes
+        for name, proc in processes:
+            try:
+                print(f"⏹️  Stopping {name}...")
+                proc.terminate()
+                proc.wait(timeout=5)
+                print(f"✅ {name} stopped")
+            except subprocess.TimeoutExpired:
+                print(f"⚠️  Force killing {name}...")
+                proc.kill()
+            except Exception as e:
+                print(f"⚠️  Error stopping {name}: {e}")
+        
+        print("\n✅ All servers stopped. Goodbye!")
+    
+    return 0
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         command = sys.argv[1]
         if command == "api":
             start_api()
+        elif command == "all":
+            sys.exit(start_all())
         elif command == "train":
             sys.exit(train())
         elif command == "replay":
@@ -213,7 +373,7 @@ if __name__ == "__main__":
             sys.exit(test())
         else:
             print(f"Unknown command: {command}")
-            print("Available commands: api, train, replay, test")
+            print("Available commands: api, all, train, replay, test")
             sys.exit(1)
 
     sys.exit(run())

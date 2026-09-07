@@ -8,7 +8,7 @@ Core backend service that powers the game assistant sidebar widget. Handles inte
 
 *   **FastAPI REST API**: 7 endpoints for chat, conversations, and widget serving
 *   **🧠 Intelligent Query Routing**:
-    *   **Default (Normal)**: Full CrewAI crew with Gemini LLM for formatted responses
+  *   **Default (Normal)**: Full CrewAI crew with Groq LLM for formatted responses
     *   **Fallback (Rate Limited)**: Direct search on 429 errors - no LLM calls
     *   **Auto-Detection**: Catches rate limits and switches automatically
 *   **Hybrid Search Engine**:
@@ -30,7 +30,7 @@ Core backend service that powers the game assistant sidebar widget. Handles inte
 | Component | Version |
 |-----------|---------|
 | **Python** | 3.10+ |
-| **Gemini API Key** | [Get here](https://aistudio.google.com/) |
+| **Groq API Key** | [Get here](https://console.groq.com/keys) |
 | **Serper API Key** | [Get here](https://serper.dev/) |
 
 ### Installation
@@ -42,7 +42,7 @@ Core backend service that powers the game assistant sidebar widget. Handles inte
 
 2. **Configure API keys** (create `.env` in project root)
    ```env
-   GEMINI_API_KEY=your_key_here
+  GROQ_API_KEY=your_key_here
    SERPER_API_KEY=your_key_here
    CHROMA_DB_PATH=./chroma_db
    ```
@@ -141,7 +141,7 @@ Response to client
 ```
 Query: "best Valorant agent for beginners?"
   ↓
-crew_search() with Gemini LLM
+crew_search() with Groq LLM
   ├─ Researcher searches ChromaDB → not found
   └─ Fallback to web search
      └─ Serper API returns 10 results
@@ -156,7 +156,7 @@ Response sent + stored in SQLite
 ```
 Query: "Valorant agents for new players?"
   ↓
-crew_search() with Gemini LLM
+crew_search() with Groq LLM
   ├─ Researcher searches ChromaDB → FOUND! ✅
   │  (distance 0.36 < 0.45 threshold)
   └─ No web search needed
@@ -170,7 +170,7 @@ Response sent instantly ⚡ (0 API calls)
 ```
 Query: "Elden Ring build?"
   ↓
-crew_search() attempts → Gemini quota exceeded ❌
+crew_search() attempts → Groq rate limit exceeded ❌
   └─ Catches "429" or "RESOURCE_EXHAUSTED"
   ↓
 Fallback: direct_search() [no LLM]
@@ -259,7 +259,7 @@ Location: `knowledge/conversations.sqlite3`
 ### LLM Settings
 **File**: [crew.py](src/rpgagents/crew.py)
 **Temperature**: 0.3 (more deterministic, less creative)
-**Model**: `gemini-flash-latest`
+**Model**: `groq/llama-3.1-70b-versatile`
 **Max Tokens**: None (default)
 
 ### Web Search
@@ -308,7 +308,7 @@ Location: `knowledge/conversations.sqlite3`
 | **Embeddings** | Sentence Transformers | Vector generation |
 | **Search** | Serper API + DuckDuckGo | Web search |
 | **Web Scraping** | BeautifulSoup4 | Extract search results |
-| **LLM** | Gemini Flash | Response formatting |
+| **LLM** | Groq Llama 3.1 70B Versatile | Response formatting |
 | **Agents** | CrewAI | Multi-agent orchestration |
 | **Database** | SQLite | Message storage |
 | **Task Queue** | Optional: Celery/Redis | Async processing |
@@ -328,7 +328,7 @@ curl -X POST http://127.0.0.1:8000/chat \
 3. Check logs for `"Local Source"` vs `"Web Index"`
 
 ### Test Rate Limit Fallback
-1. Make 20+ queries to hit Gemini quota
+1. Make enough queries to hit your Groq rate limit
 2. Next query should return results (no error)
 3. Check logs for `"Fallback: direct_search()"`
 
@@ -366,7 +366,7 @@ print(f"Documents in collection: {collection.count()}")
 ### Scaling
 1. Implement request queuing (Celery + Redis)
 2. Shard ChromaDB collections by game/region
-3. Cache Gemini responses in Redis
+3. Cache Groq responses in Redis
 4. Use connection pooling for SQLite → PostgreSQL
 5. Monitor API quota usage
 
@@ -375,8 +375,8 @@ print(f"Documents in collection: {collection.count()}")
 1. **ChromaDB Size**: In-memory by default, grows with cached queries
    - Solution: Implement periodic cleanup or use persistent backend
 
-2. **Gemini Quota**: 20 requests/day on free tier
-   - Solution: Automatic fallback works ✅ or upgrade tier
+2. **Groq Rate Limits**: Vary by plan and model
+  - Solution: Automatic fallback works ✅ or upgrade tier
 
 3. **Serper Quota**: Limited free tier calls
    - Solution: Prioritize cached searches, upgrade if needed
