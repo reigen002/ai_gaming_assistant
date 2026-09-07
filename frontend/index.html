@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Game Assistant</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Main Content Area -->
+    <main id="mainContent" class="main-content">
+        <div class="content-placeholder">
+            <h1>RPG Game Assistant</h1>
+            <p>Use the sidebar to query game information</p>
+        </div>
+    </main>
+
+    <!-- Sidebar Component -->
+    <div id="sidebarContainer" class="sidebar-container open">
+        <!-- Toggle Button (visible when sidebar is closed) -->
+        <button id="toggleBtn" class="toggle-btn" title="Open sidebar">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"></path>
+                <polyline points="16 3 20 7 16 11"></polyline>
+            </svg>
+        </button>
+
+        <!-- Sidebar Panel -->
+        <sidebar id="sidebar" class="sidebar">
+            <!-- Header -->
+            <div class="sidebar-header">
+                <h2>Game Query</h2>
+                <button id="closeBtn" class="close-btn" title="Close sidebar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Form Section -->
+            <form id="queryForm" class="query-form">
+                <!-- Game Name Input -->
+                <div class="form-group">
+                    <label for="gameName">Game Name</label>
+                    <input 
+                        type="text" 
+                        id="gameName" 
+                        placeholder="e.g., Elden Ring, Hollow Knight"
+                        class="form-input"
+                        autocomplete="off"
+                    >
+                </div>
+
+                <!-- Query Textarea -->
+                <div class="form-group">
+                    <label for="queryInput">Your Query</label>
+                    <textarea 
+                        id="queryInput" 
+                        placeholder="e.g., How to defeat Malenia? Where to find..."
+                        class="form-textarea"
+                        rows="6"
+                    ></textarea>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" id="submitBtn" class="submit-btn">
+                    Send Query
+                </button>
+            </form>
+
+            <!-- Status Area -->
+            <div id="statusArea" class="status-area">
+                <p id="statusText" class="status-text">Ready</p>
+            </div>
+
+            <!-- Results Area -->
+            <div id="resultsArea" class="results-area">
+                <div id="resultsList" class="results-list"></div>
+            </div>
+        </sidebar>
+
+        <!-- Resize Handle -->
+        <div id="resizeHandle" class="resize-handle"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

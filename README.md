@@ -1,182 +1,197 @@
-# 🎮 RPG Gaming Assistant
+# 🎮 RPG Gaming Assistant - Embeddable Game Sidebar
 
-**A Universal, Agentic Game Guide powered by RAG and Smart LLM Switching.**
+**An intelligent, embeddable game sidebar powered by RAG, Web Search, and Smart LLM Fallback.**
 
-The **RPG Gaming Assistant** is an intelligent CLI tool designed to answer complex questions about *any* RPG game (Elden Ring, Hollow Knight, Dark Souls, etc.). It uses a multi-agent system (CrewAI) to research and write detailed guides, backed by a robust RAG (Retrieval-Augmented Generation) pipeline.
-
+The **RPG Gaming Assistant** is a full-stack application with a resizable, toggleable sidebar UI that works in-game. It answers game-related questions using a hybrid approach: cached knowledge (ChromaDB), web search (Serper API + DuckDuckGo), and AI synthesis (Groq), with intelligent fallback when API rate limits are reached.
 
 ## ✨ Key Features
 
-*   **Universal Game Support**: Can research and index information for any game on demand.
-*   **🧠 Smart Provider Switching**:
-    *   **Local First**: Automatically uses **Ollama (Llama 3.2)** when high-quality data is found in the local cache (Fast & Free).
-    *   **Cloud Fallback**: Switches to **Gemini 1.5 Flash** when web search is required or local data is insufficient (High Intelligence).
-*   **Self-Healing RAG Pipeline**:
-    *   Scrapes game wikis and documentation.
-    *   Optimizes data chunking (400 chars) for precise item retrieval.
-    *   Filters false positives (Strict 0.45 semantic threshold).
-*   **Multi-Agent Workflow**:
-    *   **Research Agent**: Finds authoritative data locally or via the web.
-    *   **Writer Agent**: Compiles findings into a structured, player-friendly guide.
+*   **🎮 Embeddable Sidebar Widget**: Resizable, toggleable right-side panel with gaming aesthetic - works in any browser or game overlay.
+*   **💬 Persistent Conversations**: Chat history stored per-game with SQLite, survives restarts and sessions.
+*   **🧠 Hybrid Intelligence**:
+    *   **Local First**: ChromaDB RAG searches cached game data (instant, free)
+    *   **Web Fallback**: Serper API + DuckDuckGo for non-cached queries
+    *   **Auto-Caching**: Web results automatically indexed for future queries
+*   **⚡ Smart LLM Switching**:
+    *   **Primary**: Groq llama-3.1-70b-versatile for formatted, concise responses (1-3 sentences)
+    *   **Fallback**: Direct search (no LLM) if rate limit (429) is hit
+    *   **Auto-Recovery**: Seamlessly switches without user intervention
+*   **🔍 RAG Pipeline**:
+    *   Semantic search with strict 0.45 distance threshold (high precision)
+    *   Automatic web indexing on first query
+    *   Self-healing system that caches successful results
 
-## 🚀 Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
 
-| Requirement | Description |
-| :--- | :--- |
-| **Python** | v3.10 or higher |
-| **Ollama** | Local LLM runner. [Download Here](https://ollama.com/) |
-| **Gemini API Key** | For web search synthesis. [Get Key](https://aistudio.google.com/) |
-| **Serper API Key** | For high-quality Google Search results. [Get Key](https://serper.dev/) |
+| Component | Requirement |
+|-----------|------------|
+| **Python** | 3.10+ |
+| **Groq API Key** | [Get here](https://console.groq.com/keys) |
+| **Serper API Key** | [Get here](https://serper.dev/) |
 
-### Installation
+### Installation & Setup
 
-1.  **Clone the Repository**
-    ```bash
-    git clone https://github.com/reigen002/ai_gaming_assistant.git
-    cd ai_gaming_assistant/backend/rpgagents
-    ```
+1. **Clone repository**
+   ```bash
+   git clone <your-repo>
+   cd ai_gamming_assistant
+   ```
 
-2.  **Install Dependencies**
-    Using `uv` (recommended) or `pip`:
-    ```bash
-    pip install .
-    # OR
-    uv sync
-    ```
+2. **Create virtual environment**
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\Activate.ps1  # Windows
+   source .venv/bin/activate  # Mac/Linux
+   ```
 
-3.  **Setup Environment**
-    Create a `.env` file in the root directory:
-    ```env
-    # Required for Web Search Synthesis
-    GEMINI_API_KEY=your_google_api_key_here
-    SERPER_API_KEY=your_serper_api_key_here
-    
-    # Optional Overrides
-    OLLAMA_MODEL=llama3.2:3b
-    OLLAMA_HOST=http://localhost:11434
-    CHROMA_DB_PATH=./chroma_db
-    ```
+3. **Install dependencies**
+   ```bash
+   cd backend/rpgagents
+   pip install -e .
+   ```
 
-4.  **Pull Local Model**
-    Ensure your local Ollama instance has the model loaded:
-    ```bash
-    ollama pull llama3.2:3b
-    ```
+4. **Configure API keys** (create `.env` in project root)
+   ```env
+    GROQ_API_KEY=your_key_here
+   SERPER_API_KEY=your_key_here
+   CHROMA_DB_PATH=./chroma_db
+   ```
 
-## 🎮 Usage
+## 🎮 Running the Application
 
-Run the main script to start the interactive assistant:
-
+### **Terminal 1: Start Backend API**
 ```bash
-python src/rpgagents/main.py
+cd backend/rpgagents
+python main.py api
 ```
+✅ Backend: **http://127.0.0.1:8000**  
+📖 API Docs: **http://127.0.0.1:8000/docs**
 
-### Example Workflow
-1.  **Enter Game**: `Hollow Knight`
-2.  **Enter Query**: `How to get the Map`
-3.  **System Action**:
-    *   *First Run*: Usage **Gemini** to scrape the web -> Indexes data -> Saves Guide.
-    *   *Second Run*: Detects local data -> Uses **Ollama** (Free) -> Returns Guide instantly.
-
-All generated guides are saved to the `output/` directory.
-
-## 🪟 Embeddable Game Slidebar
-
-The backend now includes an embeddable right-side slidebar assistant with persistent, per-game chat history.
-
-### Start API
-
+### **Terminal 2: Start Frontend Server**
 ```bash
-uvicorn src.rpgagents.api:app --host 0.0.0.0 --port 8000 --reload
+cd frontend
+python -m http.server 3000
 ```
+✅ Frontend: **http://localhost:3000**
 
-### Open Slidebar Widget
-
-```text
-http://localhost:8000/widget
-```
-
-Use this URL in an in-game browser overlay (for example Steam Overlay browser, Overwolf webview, or OBS Browser Source).
-
-### Behavior
-
-* Toggle open/close from the top-right button.
-* Set a game name and create/select conversations.
-* Conversations are stored separately by game.
-* Message history persists across restarts in `knowledge/conversations.sqlite3`.
-* Enable "Auto-open when widget loads" to launch the slidebar immediately when the page is opened.
-
-### New API Endpoints
-
-* `GET /widget` - Serves the embeddable slidebar UI.
-* `POST /chat` - Sends a chat message and stores user/assistant turns.
-* `POST /conversations` - Creates a conversation.
-* `GET /conversations?game_name=<name>` - Lists conversations for a game.
-* `GET /conversations/{conversation_id}` - Fetches one conversation.
-* `GET /conversations/{conversation_id}/messages` - Fetches stored messages.
+### Usage
+1. Open browser to `http://localhost:3000`
+2. Enter game name (e.g., "Valorant", "Elden Ring")
+3. Type your question
+4. Get instant responses from cached data or web search
 
 ## 🏗️ Architecture
 
-```text
-+------------+
-| User Input |
-+------+-----+
-       |
-       v
-+------+-------+
-| Smart Switch |
-+------+-------+
-       |
-       +-------------------------------------+
-       |                                     |
-       v (High Match < 0.45)                 v (No/Low Match)
-+------+------+                       +------+-------+
-| Local Cache |                       |  Web Search  |
-| (ChromaDB)  |                       | (DuckDuckGo) |
-+------+------+                       +------+-------+
-       |                                     |
-       |                                     v
-       |                              +------+-------+
-       |                              |  Ingestion   |
-       |                              |  & Indexing  |
-       |                              +------+-------+
-       |                                     |
-       v                                     v
-+------+-------+                      +------+-------+
-|  Ollama LLM  |                      |  Gemini LLM  |
-| (Student)    |                      |  (Teacher)   |
-+------+-------+                      +------+-------+
-       |                                     |
-       +------------------+------------------+
-                          |
-                          v
-                  +-------+-------+
-                  | CrewAI Agents |
-                  | (Researcher/  |
-                  |  Writer)      |
-                  +-------+-------+
-                          |
-                          v
-                  +-------+-------+
-                  |   Final Output|
-                  |  (Guide .md)  |
-                  +---------------+
+```
+┌──────────────────────────────────────────────────┐
+│        Frontend (Port 3000)                       │
+│  HTML/CSS/JS Sidebar + LocalStorage State        │
+└────────────────┬─────────────────────────────────┘
+                 │ HTTP POST /chat
+                 ↓
+┌──────────────────────────────────────────────────┐
+│      Backend (Port 8000 - FastAPI)               │
+├──────────────────────────────────────────────────┤
+│                                                   │
+│  ┌─ Try CrewAI Crew (with LLM)                   │
+│  │   ├─ Researcher Agent                         │
+│  │  └─ Game Expert Agent (formats)               │
+│  │                                                │
+│  │  On 429 Rate Limit:                           │
+│  └─ Fallback to Direct Search (no LLM)           │
+│       ↓                                           │
+│   GameSearchTool                                  │
+│   ├─ ChromaDB (cached)     [Fast ⚡]             │
+│   └─ Serper + DuckDuckGo   [Web Search]          │
+│       ↓                                           │
+│   Conversation Store (SQLite)                    │
+│       ↓                                           │
+│   Response + ID                                  │
+└──────────────────────────────────────────────────┘
+                 ↑
+      ← JSON Response (streaming)
+                 │
+        ┌────────┴──────────┐
+        ↓                   ↓
+   Frontend Updates    ChromaDB Indexes
+   Message List        Web Results
 ```
 
+## 🪟 Embeddable Widget Behavior
 
-## 🧪 Validation
+* **Sidebar Toggle**: Click button or press `Ctrl+K` to open/close
+* **Game Selection**: Set game name at top
+* **Conversation History**: Persists per game in SQLite
+* **Message Storage**: User + Assistant messages stored with timestamps
+* **Auto-Save**: State saved to localStorage
+* **Responsive**: Adjusts width (min 280px, max 600px) via drag
 
-This project includes a full system validation suite to ensure reliability.
-Run tests with:
-```bash
-python tests/full_system_validation.py
+
+## ⚙️ Configuration
+
+### Relevance Threshold (ChromaDB Distance)
+**Current**: `0.45` (very strict, high precision)
+- Distance < 0.45 = confidence > 0.55 (return result)
+- Distance > 0.45 = trigger web search
+
+Adjust in: [src/rpgagents/tools/game_search_tool.py](backend/rpgagents/src/rpgagents/tools/game_search_tool.py#L86)
+
+### Response Format
+File: [config/tasks.yaml](backend/rpgagents/src/rpgagents/config/tasks.yaml)
+
+Default: **1-3 sentences maximum**
+- Direct answer first
+- Key details/tips
+- Source URL
+
+### LLM Temperature
+**Current**: `0.3` (more deterministic)
+
+Adjust in: [crew.py](backend/rpgagents/src/rpgagents/crew.py) - Controls creativity/randomness
+
+## 📂 Project Structure
+
 ```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please ensure any new features are covered by the validation script.
+ai_gamming_assistant/
+├── README.md (this file)
+├── .env (API keys configuration)
+├── .venv/ (Python virtual environment)
+│
+├── frontend/
+│   ├── index.html          (sidebar UI)
+│   ├── styles.css          (gaming aesthetic theme)
+│   ├── script.js           (interactivity + API integration)
+│   └── README.md           (frontend docs)
+│
+└── backend/
+    └── rpgagents/
+        ├── README.md       (backend-specific docs)
+        ├── pyproject.toml  (dependencies)
+        │
+        ├── chroma_db/                     (ChromaDB cache)
+        │   └── [game collections]
+        │
+        ├── knowledge/
+        │   └── conversations.sqlite3      (message history)
+        │
+        ├── output/                        (generated guides)
+        │
+        └── src/rpgagents/
+            ├── main.py                    (CLI + API startup)
+            ├── api.py                     (FastAPI endpoints)
+            ├── crew.py                    (CrewAI agents)
+            ├── conversation_store.py      (SQLite storage)
+            │
+            ├── config/
+            │   ├── agents.yaml            (agent definitions)
+            │   └── tasks.yaml             (task definitions)
+            │
+            └── tools/
+                ├── game_search_tool.py    (RAG + fallback logic)
+                └── web_search_tool.py     (Serper + DuckDuckGo)
+```
 
 ## ✍️ Author
 

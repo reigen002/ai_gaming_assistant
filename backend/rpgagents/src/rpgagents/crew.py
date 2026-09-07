@@ -43,15 +43,15 @@ class Rpgagents:
             with open(self.tasks_config, 'r', encoding='utf-8') as f:
                 self.tasks_config = yaml.safe_load(f)
 
-        # Standardizing on Gemini (Cloud-Only)
-        logger.info("🤖 Using LLM: Gemini Flash Latest (Cloud Only)")
-        api_key = os.getenv("GEMINI_API_KEY")
+        # Standardizing on Groq (Cloud-Only)
+        logger.info("🤖 Using LLM: Groq qwen/qwen3.6-27b (Cloud Only)")
+        api_key = os.getenv("GROQ_API_KEY")
         
         if not api_key:
-            logger.warning("⚠️ GEMINI_API_KEY not found. Agent execution may fail.")
+            logger.warning("⚠️ GROQ_API_KEY not found. Agent execution may fail.")
         
         self._llm = LLM(
-            model="gemini/gemini-flash-latest",
+            model="groq/qwen/qwen3.6-27b",
             api_key=api_key,
             temperature=0.3
         )
@@ -89,7 +89,7 @@ class Rpgagents:
 
     @task
     def reporting_task(self) -> Task:
-        """Task to create the final guide"""
+        """Task to create the final guide - ENABLED for full formatting"""
         return Task(
             config=self.tasks_config['reporting_task'],
             context=[self.research_task()],
@@ -97,10 +97,10 @@ class Rpgagents:
 
     @crew
     def crew(self) -> Crew:
-        """Creates the RPG Gaming Assistant crew"""
+        """Creates the RPG Gaming Assistant crew - Full setup with both agents"""
         return Crew(
-            agents=self.agents,
-            tasks=self.tasks,
+            agents=self.agents,  # Both researcher and game_expert
+            tasks=self.tasks,  # Both research and reporting tasks
             process=Process.sequential,
             verbose=True,
             memory=False,

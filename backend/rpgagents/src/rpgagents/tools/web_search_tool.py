@@ -13,17 +13,25 @@ logger = logging.getLogger(__name__)
 ENGLISH_WIKI_DOMAINS = [
     'fandom.com', 'fextralife.com', 'ign.com', 'gamespot.com',
     'gamefaqs.gamespot.com', 'polygon.com', 'eurogamer.net',
-    'pcgamer.com', 'rockpapershotgun.com', 'gamesradar.com'
+    'pcgamer.com', 'rockpapershotgun.com', 'gamesradar.com',
+    'liquipedia.net', 'prosettings.net', 'thegamer.com',
+    'screenrant.com', 'gamerant.com',
 ]
 
-# Domains to explicitly block (Chinese/non-English sites)
+# Domains to explicitly block (Chinese/non-English sites + social/video media with no scrapeable content)
 BLOCKED_DOMAINS = [
+    # Chinese sites
     'baidu.com', 'zhihu.com', 'bilibili.com', 'tieba.baidu.com',
     'jingyan.baidu.com', 'weibo.com', '163.com', 'qq.com',
     'tianya.cn', 'sohu.com', 'sina.com', 'douban.com', 'csdn.net',
     'jianshu.com', 'toutiao.com', 'youku.com', 'iqiyi.com',
     'acfun.cn', 'huya.com', 'douyu.com', 'taobao.com', 'tmall.com',
-    'jd.com', 'xiaohongshu.com', 'meituan.com', 'dianping.com'
+    'jd.com', 'xiaohongshu.com', 'meituan.com', 'dianping.com',
+    # Social media & video platforms (no scrapeable game guide content)
+    'instagram.com', 'youtube.com', 'youtu.be', 'tiktok.com',
+    'twitter.com', 'x.com', 'facebook.com', 'reddit.com',
+    'twitch.tv', 'discord.com', 'discord.gg', 'pinterest.com',
+    'tumblr.com', 'snapchat.com', 'threads.net',
 ]
 
 # Characters that indicate non-English content

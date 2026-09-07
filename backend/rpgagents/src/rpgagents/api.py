@@ -2,7 +2,6 @@ from datetime import datetime
 import logging
 import os
 
-from celery.result import AsyncResult
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -10,7 +9,6 @@ from pydantic import BaseModel
 
 from rpgagents.conversation_store import ConversationStore
 from rpgagents.main import quick_search
-from rpgagents.worker import run_crew_task
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -35,10 +33,6 @@ conversation_store = ConversationStore()
 class QueryRequest(BaseModel):
     game_name: str
     query: str
-
-class TaskResponse(BaseModel):
-    task_id: str
-    status: str
 
 class QueryResponse(BaseModel):
     game: str
@@ -82,7 +76,7 @@ class ChatResponse(BaseModel):
 
 @app.get("/health")
 def health_check():
-    return {"status": "online", "model": "gemini-flash-latest", "version": "2.0.0"}
+    return {"status": "online", "model": "groq/qwen/qwen3.6-27b", "version": "2.0.0"}
 
 
 @app.get("/widget")
@@ -95,24 +89,22 @@ def get_widget():
 
     return FileResponse(widget_path)
 
-@app.post("/ask", response_model=TaskResponse)
+@app.post("/ask", response_model=QueryResponse)
 def ask_question(request: QueryRequest):
     """
-    Submit a game guide request for asynchronous processing.
+    Submit a game guide request and return the result synchronously.
     """
     try:
-        logger.info(f"Submitting task: {request.game_name} -> {request.query}")
-        
-        # Dispatch task to Celery
-        task = run_crew_task.delay(request.game_name, request.query)
-        
-        return TaskResponse(
-            task_id=task.id,
-            status="PENDING"
+        logger.info(f"Processing query: {request.game_name} -> {request.query}")
+        result = quick_search(request.game_name, request.query)
+        return QueryResponse(
+            game=request.game_name,
+            query=request.query,
+            result=result,
+            timestamp=datetime.now().isoformat()
         )
-
     except Exception as e:
-        logger.error(f"Error submitting task: {str(e)}")
+        logger.error(f"Error processing query: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -152,15 +144,21 @@ def get_conversation_messages(conversation_id: str):
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
     try:
+        logger.info(f"Chat request: game={request.game_name}, message={request.message}")
+        
         conversation_id = conversation_store.create_or_get_conversation(
             game_name=request.game_name,
             conversation_id=request.conversation_id,
             title=f"{request.game_name} chat",
         )
+        logger.info(f"Conversation ID: {conversation_id}")
 
         conversation_store.add_message(conversation_id, "user", request.message)
+        logger.info("User message stored")
 
+        logger.info("Searching for answer...")
         answer = quick_search(request.game_name, request.message)
+        logger.info(f"Answer received: {len(answer)} chars")
 
         conversation_store.add_message(conversation_id, "assistant", answer)
 
@@ -171,49 +169,10 @@ def chat(request: ChatRequest):
             timestamp=datetime.now().isoformat(),
         )
     except Exception as e:
-        logger.error(f"Error processing chat: {str(e)}")
+        logger.error(f"Error processing chat: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/status/{task_id}")
-def get_status(task_id: str):
-    """
-    Check the status of a background task.
-    """
-    task_result = AsyncResult(task_id)
-    
-    response = {
-        "task_id": task_id,
-        "status": task_result.status,
-    }
-    
-    if task_result.status == "PROGRESS":
-        response["message"] = task_result.info.get("message", "")
-    elif task_result.status == "FAILURE":
-        response["error"] = str(task_result.info)
-        
-    return response
 
-@app.get("/result/{task_id}", response_model=QueryResponse)
-def get_result(task_id: str):
-    """
-    Retrieve the finished guide result.
-    """
-    task_result = AsyncResult(task_id)
-    
-    if not task_result.ready():
-        raise HTTPException(status_code=400, detail="Task not finished yet")
-        
-    if task_result.failed():
-        raise HTTPException(status_code=500, detail="Task failed")
-        
-    result_data = task_result.result
-    
-    return QueryResponse(
-        game=result_data['game'],
-        query=result_data['query'],
-        result=result_data['result'],
-        timestamp=datetime.now().isoformat()
-    )
 
 if __name__ == "__main__":
     import uvicorn
